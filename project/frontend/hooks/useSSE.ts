@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react"
 import type { SSEHandlers } from "@/types/sse"
+import { authStore } from "@/stores/authStore"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 const MAX_RECONNECT_ATTEMPTS = 5
@@ -38,7 +39,41 @@ export function useSSE(
 
     close()
 
-    const url = `${API_BASE_URL}/api/v1/jobs/${jobId}/stream`
+    // EventSource doesn't support custom headers, so we pass token as query parameter
+    const authState = authStore.getState()
+    const token = authState.token
+    
+    // Always log the auth state for debugging
+    console.log("🔍 SSE Connection Debug:", {
+      jobId,
+      hasToken: !!token,
+      tokenLength: token?.length || 0,
+      userEmail: authState.user?.email,
+      tokenPreview: token ? `${token.substring(0, 20)}...` : "null"
+    })
+    
+    if (!token) {
+      console.error("❌ No token found in authStore for SSE connection!")
+      console.error("Full auth state:", authState)
+      // Try to get session from Supabase directly
+      import("@/lib/supabase").then(({ supabase }) => {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+          if (session?.access_token) {
+            console.log("✅ Found token in Supabase session, updating authStore")
+            authStore.setState({ token: session.access_token })
+            // Retry connection with new token
+            setTimeout(() => connect(), 100)
+          } else {
+            console.error("❌ No session found in Supabase either")
+          }
+        })
+      })
+      return // Don't connect without token
+    }
+    
+    const url = `${API_BASE_URL}/api/v1/jobs/${jobId}/stream?token=${encodeURIComponent(token)}`
+    console.log("✅ SSE connecting with token:", url.substring(0, 120) + "...")
+    
     const eventSource = new EventSource(url, { withCredentials: true })
 
     eventSource.onopen = () => {

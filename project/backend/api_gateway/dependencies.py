@@ -18,7 +18,7 @@ from shared.logging import get_logger
 logger = get_logger(__name__)
 
 # HTTP Bearer token scheme
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)  # Don't auto-raise on missing token
 
 # Redis client for JWT caching
 redis_client = RedisClient()
@@ -26,13 +26,17 @@ db_client = DatabaseClient()
 
 
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security)
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    token: Optional[str] = None
 ) -> dict:
     """
     Validate JWT token and return current user.
     
+    Supports both Bearer token (header) and query parameter authentication.
+    
     Args:
-        credentials: HTTP Bearer token credentials
+        credentials: HTTP Bearer token credentials (from header)
+        token: Optional token from query parameter (for SSE)
         
     Returns:
         Dictionary with user_id
@@ -40,7 +44,19 @@ async def get_current_user(
     Raises:
         HTTPException: If token is invalid or missing
     """
-    token = credentials.credentials
+    # Get token from header or query parameter
+    if credentials:
+        token = credentials.credentials
+        logger.debug("Token from Authorization header", extra={"token_preview": token[:20] + "..." if token else None})
+    elif token:
+        logger.debug("Token from query parameter", extra={"token_preview": token[:20] + "..." if token else None})
+    else:
+        logger.warning("No token provided in header or query parameter")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing authentication token",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
     
     # Check Redis cache first
     token_hash = hashlib.sha256(token.encode()).hexdigest()
