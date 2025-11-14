@@ -1,0 +1,122 @@
+graph TB
+    %% User Layer
+    User[👤 User]
+    
+    %% Frontend Layer
+    subgraph Frontend["🌐 Frontend (Next.js 14 + TypeScript)"]
+        UI[Upload UI]
+        Progress[Progress Tracker]
+        Player[Video Player]
+        SSE_Client[SSE Client]
+    end
+    
+    %% API Gateway Layer
+    subgraph API_Gateway["⚙️ API Gateway (FastAPI)"]
+        REST[REST Endpoints]
+        SSE_Server[SSE Stream Handler]
+        Queue_Manager[BullMQ Queue Manager]
+        Orchestrator[Pipeline Orchestrator]
+        Budget_Guard[Budget Guard<br/>$20 limit]
+        Rate_Limit[Rate Limiter<br/>5 jobs/hour]
+    end
+    
+    %% Queue System
+    subgraph Queue["📋 Job Queue (BullMQ + Redis)"]
+        Job_Queue[Job Queue]
+        Worker1[Worker 1]
+        Worker2[Worker 2]
+    end
+    
+    %% Processing Pipeline Modules
+    subgraph Pipeline["🔄 Processing Pipeline"]
+        Module3["[3] Audio Parser<br/>Librosa + Aubio<br/>OpenAI Whisper"]
+        Module4["[4] Scene Planner<br/>GPT-4o / Claude 3.5"]
+        Module5["[5] Reference Generator<br/>SDXL via Replicate"]
+        Module6["[6] Prompt Generator<br/>LLM Optimization"]
+        Module7["[7] Video Generator<br/>Stable Video Diffusion<br/>(Parallel: 5 concurrent)<br/>1024x576 → 1080p"]
+        Module8["[8] Composer<br/>FFmpeg<br/>Upscale + Transitions"]
+    end
+    
+    %% External Services
+    subgraph External["☁️ External Services"]
+        Supabase_Auth[Supabase Auth]
+        Supabase_DB[(Supabase PostgreSQL)]
+        Supabase_Storage[Supabase Storage<br/>audio-uploads<br/>reference-images<br/>video-clips<br/>video-outputs]
+        OpenAI[OpenAI API<br/>Whisper + GPT-4o]
+        Replicate[Replicate API<br/>SDXL + SVD]
+    end
+    
+    %% User Flow
+    User -->|Upload Audio + Prompt| UI
+    UI -->|POST /upload-audio| REST
+    REST -->|Create Job| Rate_Limit
+    Rate_Limit -->|Check Limit| Queue_Manager
+    Queue_Manager -->|Budget Check| Budget_Guard
+    Budget_Guard -->|Enqueue| Job_Queue
+    
+    %% Queue Processing
+    Job_Queue -->|Process| Worker1
+    Job_Queue -->|Process| Worker2
+    Worker1 -->|Execute| Orchestrator
+    Worker2 -->|Execute| Orchestrator
+    
+    %% Pipeline Flow
+    Orchestrator -->|Step 1: 10%| Module3
+    Module3 -->|audio_data| Module4
+    Orchestrator -->|Step 2: 20%| Module4
+    Module4 -->|plan| Module5
+    Orchestrator -->|Step 3: 30%| Module5
+    Module5 -->|reference_images| Module6
+    Orchestrator -->|Step 4: 40%| Module6
+    Module6 -->|clip_prompts| Module7
+    Orchestrator -->|Step 5: 85%| Module7
+    Module7 -->|clips| Module8
+    Orchestrator -->|Step 6: 100%| Module8
+    Module8 -->|final_video| Supabase_Storage
+    
+    %% External Service Connections
+    Module3 -->|Audio Analysis| Supabase_Storage
+    Module3 -->|Lyrics Extraction| OpenAI
+    Module4 -->|Scene Planning| OpenAI
+    Module5 -->|Image Generation| Replicate
+    Module6 -->|Prompt Optimization| OpenAI
+    Module7 -->|Video Generation| Replicate
+    Module7 -->|Reference Images| Supabase_Storage
+    
+    %% Data Storage
+    REST -->|Store Job| Supabase_DB
+    Orchestrator -->|Update Status| Supabase_DB
+    Module3 -->|Cache Analysis| Supabase_DB
+    Module3 -->|Store Results| Supabase_DB
+    Module4 -->|Store Plan| Supabase_DB
+    Module5 -->|Store Images| Supabase_Storage
+    Module7 -->|Store Clips| Supabase_Storage
+    
+    %% Authentication
+    UI -->|Login| Supabase_Auth
+    REST -->|Validate Token| Supabase_Auth
+    
+    %% Real-time Updates
+    Orchestrator -->|Progress Events| SSE_Server
+    SSE_Server -->|SSE Stream| SSE_Client
+    SSE_Client -->|Update UI| Progress
+    Progress -->|Display| User
+    
+    %% Final Output
+    Supabase_Storage -->|Video URL| REST
+    REST -->|GET /download| Player
+    Player -->|Play/Download| User
+    
+    %% Styling
+    classDef frontend fill:#e1f5ff,stroke:#01579b,stroke-width:2px
+    classDef api fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    classDef pipeline fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    classDef external fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
+    classDef queue fill:#fce4ec,stroke:#880e4f,stroke-width:2px
+    
+    class UI,Progress,Player,SSE_Client frontend
+    class REST,SSE_Server,Queue_Manager,Orchestrator,Budget_Guard,Rate_Limit api
+    class Module3,Module4,Module5,Module6,Module7,Module8 pipeline
+    class Supabase_Auth,Supabase_DB,Supabase_Storage,OpenAI,Replicate external
+    class Job_Queue,Worker1,Worker2 queue
+
