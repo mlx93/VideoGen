@@ -1,7 +1,7 @@
 """
 Rate limiting service.
 
-Redis-based sliding window rate limiting (5 jobs per user per hour).
+Redis-based sliding window rate limiting (200 jobs per user per hour).
 """
 
 import time
@@ -17,7 +17,7 @@ redis_client = RedisClient()
 
 async def check_rate_limit(user_id: str) -> None:
     """
-    Check if user has exceeded rate limit (5 jobs per hour).
+    Check if user has exceeded rate limit (200 jobs per hour).
     
     Uses Redis sorted set with sliding window algorithm.
     
@@ -27,6 +27,8 @@ async def check_rate_limit(user_id: str) -> None:
     Raises:
         RateLimitError: If rate limit exceeded
     """
+    RATE_LIMIT = 200  # jobs per hour
+    
     key = f"rate_limit:{user_id}"
     now = int(time.time())  # UTC Unix timestamp
     one_hour_ago = now - 3600
@@ -38,7 +40,7 @@ async def check_rate_limit(user_id: str) -> None:
         # Count entries in last hour
         count = await redis_client.client.zcard(key)
         
-        if count >= 5:
+        if count >= RATE_LIMIT:
             # Calculate Retry-After header
             # Get oldest entry timestamp
             oldest_entries = await redis_client.client.zrange(key, 0, 0, withscores=True)
@@ -54,7 +56,7 @@ async def check_rate_limit(user_id: str) -> None:
             )
             
             raise RateLimitError(
-                "Rate limit exceeded: 5 jobs per hour",
+                f"Rate limit exceeded: {RATE_LIMIT} jobs per hour",
                 retry_after=retry_after,
                 code="RATE_LIMIT_EXCEEDED"
             )

@@ -129,13 +129,13 @@ async def upload_audio(
         
         # Create job record in database
         # Note: Using 'id' as job_id (primary key) since schema uses 'id' as PK
+        # Note: Schema has 'total_cost' not 'estimated_cost', so we don't store estimated_cost
         job_data = {
             "id": job_id,  # Use generated UUID as primary key
             "user_id": user_id,
             "status": "queued",
             "audio_url": audio_url,
             "user_prompt": user_prompt,
-            "estimated_cost": estimated_cost,
             "progress": 0,
             "created_at": datetime.utcnow().isoformat()
         }

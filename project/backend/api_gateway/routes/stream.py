@@ -6,11 +6,13 @@ Real-time progress updates via Server-Sent Events.
 
 import asyncio
 import json
-from fastapi import APIRouter, Path, Depends, HTTPException, status
+from typing import Optional
+from fastapi import APIRouter, Path, Depends, HTTPException, status, Query
 from fastapi.responses import StreamingResponse
+from fastapi.security import HTTPAuthorizationCredentials
 from shared.redis_client import RedisClient
 from shared.logging import get_logger
-from api_gateway.dependencies import get_current_user, verify_job_ownership
+from api_gateway.dependencies import get_current_user, verify_job_ownership, security
 from api_gateway.services.sse_manager import (
     add_connection,
     remove_connection,
@@ -165,18 +167,24 @@ async def event_generator(job_id: str):
 @router.get("/jobs/{job_id}/stream")
 async def stream_progress(
     job_id: str = Path(...),
-    current_user: dict = Depends(get_current_user)
+    token: Optional[str] = Query(None, alias="token"),  # Token from query parameter
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)  # Token from header
 ):
     """
     SSE stream for real-time progress updates.
     
     Args:
         job_id: Job ID to stream events for
-        current_user: Current authenticated user
+        token: Optional token from query parameter (for SSE, since EventSource can't send headers)
+        credentials: Optional token from Authorization header
+        request: FastAPI request object
         
     Returns:
         SSE stream response
     """
+    # Get current user using token from query param or header
+    current_user = await get_current_user(credentials=credentials, token=token)
+    
     # Verify job ownership
     try:
         await verify_job_ownership(job_id, current_user)
