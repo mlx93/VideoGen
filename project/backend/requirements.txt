@@ -24,6 +24,7 @@ librosa>=0.10.1
 soundfile>=0.12.1  # Required by librosa for audio I/O
 numpy>=1.24.0  # NumPy 2.x is fine for librosa
 scipy>=1.11.0  # Required by librosa for signal processing
+scikit-learn>=1.3.0  # Required for structure analysis clustering
 mutagen>=1.47.0  # Quick audio metadata extraction (for duration without full decode)
 
 # OpenAI API (Module 3: Lyrics, Module 4: Scene Planning, Module 6: Prompt Generation)
